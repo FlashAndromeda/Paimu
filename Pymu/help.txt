@@ -1,0 +1,4 @@
+Hey! Here's a list of commands you could use:
+> **Paimu help**    - show the help message!
+> **Paimu hello**   - greet Paimu!
+> **Paimu bye**     - say goodbye to Paimu!
