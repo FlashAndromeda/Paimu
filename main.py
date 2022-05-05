@@ -347,6 +347,7 @@ class Cinematography(commands.Cog):
 def setup(bot):
     bot.add_cog(Various(bot))
     bot.add_cog(Literature(bot))
+    bot.add_cog(Cinematography(bot))
 
 setup(bot)
 bot.run(TOKEN)
