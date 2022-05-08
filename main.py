@@ -1,16 +1,30 @@
 import os
 import random
 
+import logging
+import secrets
+from datetime import date
 import discord
 import requests
 from discord.ext import commands
 from discord.errors import Forbidden
 from dotenv import load_dotenv
 
+# TODO Expand Cinematography category
+# TODO Add NASA API integration / sort of done
+# TODO Add music playback functionality
+
+logger = logging.getLogger('discord')
+logger.setLevel(logging.DEBUG)
+handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
+
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 SCREENSHOT_TOKEN = os.getenv('SCREENSHOT_TOKEN')
 IMDB_KEY = os.getenv('IMDB_KEY')
+NASA_KEY = os.getenv('NASA_KEY')
 
 embed_color = 0xf0f0f0
 
@@ -26,6 +40,12 @@ async def send_embed(ctx, embed):
             await ctx.author.send(
                 f"Hey, seems like I can't send any message in {ctx.channel.name} on {ctx.guild.name}\n"
                 f"May you inform the server team about this issue? :slight_smile: ", embed=embed)
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        msg = "**It's on cooldown**, please try again in {:.2f}s".format(error.retry_after)
+        await ctx.send(msg)
 
 class Various(commands.Cog):
     """
@@ -86,7 +106,7 @@ class Various(commands.Cog):
         if user is None:
             user = ctx.author
 
-        embed = discord.Embed(colour=embed_color)
+        embed = discord.Embed(colour=embed_color, type='image')
         embed.set_author(name=user.display_name, icon_url=user.avatar_url)
         embed.set_image(url=user.avatar_url)
 
@@ -137,55 +157,14 @@ class Various(commands.Cog):
         except AttributeError:
             lang = r['languages']
 
-        #########################################
-        try:
-            capital = r['capital'][0]
-        except KeyError:
-            print(f"Capital for {name} is not available")
-            capital = "not available"
-
-        try:
-            subregion = r['subregion']
-        except KeyError:
-            print(f"Subregion for {name} is not available")
-            subregion = 'not available'
-
-        try:
-            area = str(r['area']) + ' km2'
-        except KeyError:
-            print(f"Area for {name} is not available")
-            area = 'not available'
-
-        try:
-            population = r['population']
-        except KeyError:
-            print(f"Population for {name} is not available")
-            population = 'not available'
-
-        try:
-            gini = list(r['gini'].values())[0]
-        except KeyError:
-            print(f"Gini index for {name} is not available")
-            gini = "not available"
-
-        try:
-            continents = ', '.join(r['continents'])
-        except KeyError:
-            print(f"Continents for {name} are not available")
-            continents = 'not available'
-
-        try:
-            week = r['startOfWeek']
-        except KeyError:
-            print(f"Start of week for {name} is not available")
-            week = 'not available'
-
-        try:
-            webdomain = r['tld'][0]
-        except KeyError:
-            print(f"Web domain for {name} is not available")
-            webdomain = 'not available'
-        ########################################
+        capital = r.get('capital', 'not available')[0]
+        subregion = r.get('subregion', 'not available')
+        area = str(r.get('area', 'not available')) + ' km2'
+        population = r.get('population', 'not available')
+        week = r.get('startOfWeek', 'not available')
+        webdomain = r.get('tld', 'not available')[0]
+        gini = list(r.get('gini', 'not available').values())[0]
+        continents = ', '.join(r.get('continents', 'not available'))
 
         embed = discord.Embed(
             color=embed_color,
@@ -195,15 +174,15 @@ class Various(commands.Cog):
         )
         embed.set_thumbnail(url=r['flags']['png'])
 
-        embed.add_field(name=f'Some info about {name}:', value=f"Capital:             {capital}\n"
-                                                                 f"Region:              {subregion}\n"
-                                                                 f"Area:                {area}\n"
-                                                                 f"Population:          {population}\n"
-                                                                 f"GINI index:          {gini}\n"
-                                                                 f"Languages used:      {lang}\n"
-                                                                 f"Continents:          {continents}\n"
-                                                                 f"Start of week:       {week}\n"
-                                                                 f"Web domain:          {webdomain}", inline=False)
+        embed.add_field(name=f'Some info about {name}:', value=f"**Capital:**             {capital}\n"
+                                                               f"**Region:**              {subregion}\n"
+                                                               f"**Area:**                {area}\n"
+                                                               f"**Population:**          {population}\n"
+                                                               f"**GINI index:**          {gini}\n"
+                                                               f"**Languages used:**      {lang}\n"
+                                                               f"**Continents:**          {continents}\n"
+                                                               f"**Start of week:**       {week}\n"
+                                                               f"**Web domain:**          {webdomain}", inline=False)
 
         if r['unMember']:
             unmem = 'Yes.'
@@ -212,6 +191,16 @@ class Various(commands.Cog):
         embed.add_field(name=f'Is {name} a member of the UN?', value=unmem, inline=False)
 
         await send_embed(ctx, embed)
+
+    @commands.command(name='pick', brief='Picks one thing from a list of items.')
+    async def pick(self, ctx, *items):
+        """
+        This command is used to randomly pick one item from a list of items. To use it, simply type in "-p pick" followed by a number of items separated by spaces.
+        """
+
+        items = list(items)
+
+        await ctx.send(f"I've chosen: {secrets.choice(items)}")
 
 class Literature(commands.Cog):
     """
@@ -227,41 +216,25 @@ class Literature(commands.Cog):
         """This command is used to look up information about a specific book. To use it, simply type in quotation marks the name and author of the book you want to look up!
         Returns things like author name, average number of pages or the year the book was first published."""
 
-        book_title = str(book_title)
+        book_title = str(book_title).replace(' ', '%20')
 
         res = requests.get(
-            f"http://openlibrary.org/search.json?q={book_title.replace(' ', '+')}&fields=title,author_name,first_publish_year,number_of_pages_median,edition_count,cover_i,key&limit=1").json()
+            f"http://openlibrary.org/search.json?q={book_title}&fields=title,author_name,first_publish_year,number_of_pages_median,edition_count,cover_i,key&limit=1").json()
         book = res['docs'][0]
 
-        #################################
-        try:
-            author = str(book['author_name'][0])
-        except KeyError:
-            author = 'not available'
+        author = book.get('author_name', 'not available')[0]
+        publishyear = book.get('first_publish_year', 'not available')
+        pages = book.get('number_of_pages_median', 'not available')
+        editions = book.get('edition_count', 'not available')
 
-        try:
-            publishyear = book['first_publish_year']
-        except KeyError:
-            publishyear = 'not available'
-
-        try:
-            pages = book['number_of_pages_median']
-        except KeyError:
-            pages = 'not available'
-
-        try:
-            editions = book['edition_count']
-        except KeyError:
-            editions = 'not available'
-        ##################################
         embed = discord.Embed(
             colour=embed_color,
             title=book['title'],
             url=f"https://openlibrary.org{book['key']}/",
-            description=f"Written by {author}\n"
-                        f"Year first published: {publishyear}\n"
-                        f"Pages: {pages}\n"
-                        f"Editions: {editions}",
+            description=f"**Written by** {author}\n"
+                        f"**Year first published:** {publishyear}\n"
+                        f"**Pages:** {pages}\n"
+                        f"**Editions:** {editions}",
         )
         try:
             cover = f"https://covers.openlibrary.org/b/ID/{book['cover_i']}-L.jpg"
@@ -269,6 +242,75 @@ class Literature(commands.Cog):
         except KeyError:
             print('No cover found!')
             pass
+
+        await send_embed(ctx, embed)
+
+    @commands.command(name='author', brief='Look up information about an author.', aliases=['aut'], usage='<author_name>')
+    async def author(self, ctx, *author_name):
+
+        """
+        A command used to look up information about a specific author.
+        """
+
+        author_name = str(author_name).replace(' ', '%20')
+
+        r = requests.get(f"https://openlibrary.org/search/authors.json?q={author_name}").json()
+        key = r['docs'][0]['key']
+
+        r2 = requests.get(f"https://openlibrary.org/authors/{key}.json").json()
+
+        ########################################
+        try:
+            name = f"{r2['name']} ({r2['fuller_name']})"
+        except KeyError:
+            name = r2.get('name')
+
+        bio = r2.get('bio', 'Bio not available.')
+        birth_date = r2.get('birth_date', 'not available')
+        death_date = r2.get('death_date', None)
+        top_work = r['docs'][0].get('top_work', 'not available')
+        work_count = r['docs'][0].get('work_count', 'not available')
+
+        ########################################
+
+        embed = discord.Embed(colour=embed_color, title=name, description=bio,
+                              url=f"https://openlibrary.org{r2['key']}")
+
+        embed.add_field(name=f"About {r2['name']}:", value=f"**Birth date:** {birth_date}\n"
+                                                           f"**Death date:** {death_date}\n"
+                                                           f"**Top work:** {top_work}\n"
+                                                           f"**Work count:** {work_count}", inline=False)
+
+        await send_embed(ctx, embed)
+
+    @commands.cooldown(5, 60, commands.BucketType.user)
+    @commands.command(name='subject', brief='Look up books by subject.', aliases=['sub'], usage='<book_subject>')
+    async def subject(self, ctx, *book_subject):
+
+        """
+        This command is used to look up a number of works on a certain subject. It displays only the top 5 works.
+        """
+
+        r = requests.get(f"http://openlibrary.org/subjects/{book_subject[0]}.json?limit=5").json()
+        works = r.get('works')
+
+        embed = discord.Embed(colour=embed_color, title=f"Subject: {r.get('name')}", description=f"Works found total: {r.get('work_count', 'none')}", url=f"http://openlibrary.org{r.get('key')}")
+
+        for work in works:
+            key = work.get('cover_edition_key')
+
+            r2 = requests.get(f"http://openlibrary.org/books/{key}.json").json()
+
+            title = r2.get('title', 'not available')
+            author = (work.get('authors', 'not available')[0]).get('name')
+            edition_count = work.get('edition_count', 'not available')
+            pages = r2.get('number_of_pages', 'not available')
+            book_url = f"http://openlibrary.org{key}"
+
+            embed.add_field(name=title, value=f"Written by {author}\n"
+                                              f"Pages: {pages}\n"
+                                              f"Editions: {edition_count}\n"
+                                              f"[Link to book.]({book_url})\n", inline=False)
 
         await send_embed(ctx, embed)
 
@@ -327,27 +369,101 @@ class Cinematography(commands.Cog):
 
         try:
             embed.add_field(name='Ratings:', value=f"IMDB: {ratings['imDb']}\n"
-                                                      f"Metacritic: {ratings['metacritic']}\n"
-                                                      f"Rotten tomatoes: {ratings['rottenTomatoes']}", inline=True)
+                                                   f"Metacritic: {ratings['metacritic']}\n"
+                                                   f"Rotten tomatoes: {ratings['rottenTomatoes']}", inline=True)
         except KeyError:
             pass
 
         try:
             embed.add_field(name=f'Box Office:', value=f"Budget: {box['budget']}\n"
-                                                      f"Opening weekend USA: {box['openingWeekendUSA']}\n"
-                                                      f"Gross USA: {box['grossUSA']}\n"
-                                                      f"Gross worldwide: {box['cumulativeWorldwideGross']}", inline=True)
+                                                       f"Opening weekend USA: {box['openingWeekendUSA']}\n"
+                                                       f"Gross USA: {box['grossUSA']}\n"
+                                                       f"Gross worldwide: {box['cumulativeWorldwideGross']}", inline=True)
         except KeyError:
             pass
 
         await send_embed(ctx, embed)
 
+class Astronomy(commands.Cog):
+    """
+    A collection of commands related to space and astronomy.
+    """
 
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    @commands.command(name='apod', brief="Returns NASA's picture of the day.")
+    async def apod(self, ctx):
+        """
+        Returns the NASA's Astronomy picture of the day.
+        """
+
+        r = requests.get(f"https://api.nasa.gov/planetary/apod?api_key={NASA_KEY}").json()
+
+        author = r.get('copyright')
+        date = r.get('date')
+        description = r.get('explanation')
+        hdurl = r.get('hdurl')
+        url = r.get('url')
+        title = r.get('title')
+
+        embed = discord.Embed(colour=embed_color, title=title, description=description, url=hdurl)
+        embed.set_author(name=author)
+        embed.set_image(url=url)
+        embed.set_footer(text=date)
+
+        await send_embed(ctx, embed)
+
+    @commands.cooldown(1, 120, commands.BucketType.guild)
+    @commands.command(name='neo', brief='Returns information about near earth Asteroids.')
+    async def neo(self, ctx):
+        """
+        This command returns a list and details about near earth Asteroids based on their closest approach to Earth. It only displays data for the current day.
+        """
+
+
+        r = requests.get(f"https://api.nasa.gov/neo/rest/v1/feed?start_date={date.today()}&end_date={date.today()}&api_key={NASA_KEY}").json()
+        day = r['near_earth_objects'][f"{date.today()}"]
+
+        element_count = r.get('element_count')
+
+        embed = discord.Embed(colour=embed_color, title=f"NEO's on {date.today()}", description=f"NEO's found total: {element_count}")
+
+        for a in day:
+            name = a.get('name')
+            neo_id = a.get('neo_reference_id')
+            absolute_magnitude = a.get('absolute_magnitude_h')
+            diam_min = a['estimated_diameter']['meters']['estimated_diameter_min']
+            diam_max = a['estimated_diameter']['meters']['estimated_diameter_max']
+            is_hazard = a.get('is_potentially_hazardous_asteroid')
+
+            data = a['close_approach_data'][0]
+            approach_date = data['close_approach_date_full']
+            relative_vel = data['relative_velocity']['kilometers_per_second']
+            miss_dist_au = data['miss_distance']['astronomical']
+            orbiting_body = data['orbiting_body']
+
+            is_sentry = a.get('is_sentry_object')
+
+            embed.add_field(name=name, value=f"ID: {neo_id}\n"
+                                             f"Absolute magnitude: {absolute_magnitude}\n"
+                                             f"Minimum estimated diameter: {round(float(diam_min), 2)}m\n"
+                                             f"Maximum estimated diameter: {round(float(diam_max), 2)}m\n"
+                                             f"Is it potentially a hazardous asteroid? {is_hazard}\n"
+                                             f"Is it a sentry object? {is_sentry}\n\n"
+                                             f"Close approach date: {approach_date}\n"
+                                             f"Relative velocity: {round(float(relative_vel), 2)} km/s\n"
+                                             f"Miss distance: {round(float(miss_dist_au), 3)} AU\n"
+                                             f"Orbiting body: {orbiting_body}\n", inline=True)
+
+        await send_embed(ctx, embed)
 
 def setup(bot):
     bot.add_cog(Various(bot))
     bot.add_cog(Literature(bot))
     bot.add_cog(Cinematography(bot))
+    bot.add_cog(Astronomy(bot))
 
 setup(bot)
 bot.run(TOKEN)
