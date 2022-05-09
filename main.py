@@ -401,19 +401,30 @@ class Astronomy(commands.Cog):
 
         r = requests.get(f"https://api.nasa.gov/planetary/apod?api_key={NASA_KEY}").json()
 
-        author = r.get('copyright')
         date = r.get('date')
         description = r.get('explanation')
         hdurl = r.get('hdurl')
         url = r.get('url')
         title = r.get('title')
 
-        embed = discord.Embed(colour=embed_color, title=title, description=description, url=hdurl)
-        embed.set_author(name=author)
-        embed.set_image(url=url)
-        embed.set_footer(text=date)
+        if hdurl is None:
+            hdurl = ''
 
-        await send_embed(ctx, embed)
+        if r.get('media_type') == 'video':
+            url = url.replace('embed/', '/watch?v=')
+            embed = discord.Embed(colour=embed_color, title=title, description=description, url=url, type='video')
+            embed.set_footer(text=date)
+            await send_embed(ctx, embed)
+            await ctx.send(url)
+
+        elif r.get('media_type') == 'image':
+            embed = discord.Embed(colour=embed_color, title=title, description=description, url=hdurl)
+            embed.set_image(url=url)
+            embed.set_footer(text=date)
+            await send_embed(ctx, embed)
+
+        else:
+            print('Apod ifstatements not working :(')
 
     @commands.cooldown(1, 120, commands.BucketType.guild)
     @commands.command(name='neo', brief='Returns information about near earth Asteroids.')
