@@ -14,11 +14,11 @@ from dotenv import load_dotenv
 # TODO Add NASA API integration / sort of done
 # TODO Add music playback functionality
 
-logger = logging.getLogger('discord')
-logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-logger.addHandler(handler)
+# logger = logging.getLogger('discord')
+# logger.setLevel(logging.DEBUG)
+# handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+# handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+# logger.addHandler(handler)
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -133,12 +133,11 @@ class Miscellaneous(commands.Cog):
         await send_embed(ctx, embed)
 
     @commands.command(name='country', brief='Look up information about countries.', aliases=['co'], usage='<country_name>')
-    async def country(self, ctx, *country_name:str):
+    async def country(self, ctx, *country_name):
 
         """This command is used to search up information about any particular country by name."""
 
-        country_name = str(country_name).replace(' ', '%20').strip("'()")
-
+        country_name = str(country_name[0]).replace(' ', '%20')
         try:
             r = requests.get(f"https://restcountries.com/v3.1/name/{country_name}").json()[0]
         except KeyError:
