@@ -304,7 +304,7 @@ class Literature(commands.Cog):
             author = (work.get('authors', 'not available')[0]).get('name')
             edition_count = work.get('edition_count', 'not available')
             pages = r2.get('number_of_pages', 'not available')
-            book_url = f"http://openlibrary.org{key}"
+            book_url = f"http://openlibrary.org/books/{key}"
 
             embed.add_field(name=title, value=f"Written by {author}\n"
                                               f"Pages: {pages}\n"
