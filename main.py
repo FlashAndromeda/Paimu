@@ -47,9 +47,9 @@ async def on_command_error(ctx, error):
         msg = "**It's on cooldown**, please try again in {:.2f}s".format(error.retry_after)
         await ctx.send(msg)
 
-class Various(commands.Cog):
+class Miscellaneous(commands.Cog):
     """
-    A collection of various random commands with no specific utility in mind.
+    A collection of various random commands with no specific theme in mind.
     """
 
     def __init__(self, bot):
@@ -133,11 +133,11 @@ class Various(commands.Cog):
         await send_embed(ctx, embed)
 
     @commands.command(name='country', brief='Look up information about countries.', aliases=['co'], usage='<country_name>')
-    async def country(self, ctx, *country_name):
+    async def country(self, ctx, *country_name:str):
 
         """This command is used to search up information about any particular country by name."""
 
-        country_name = str(country_name).replace(' ', '%20')
+        country_name = str(country_name).replace(' ', '%20').strip("'()")
 
         try:
             r = requests.get(f"https://restcountries.com/v3.1/name/{country_name}").json()[0]
@@ -392,7 +392,7 @@ class Astronomy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.cooldown(1, 30, commands.BucketType.user)
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     @commands.command(name='apod', brief="Returns NASA's picture of the day.")
     async def apod(self, ctx):
         """
@@ -471,7 +471,7 @@ class Astronomy(commands.Cog):
         await send_embed(ctx, embed)
 
 def setup(bot):
-    bot.add_cog(Various(bot))
+    bot.add_cog(Miscellaneous(bot))
     bot.add_cog(Literature(bot))
     bot.add_cog(Cinematography(bot))
     bot.add_cog(Astronomy(bot))
